@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sonar Rock vs Mine Predictor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-glow {
+            animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                    <path d="M12 6v6l4 2" stroke-width="2"/>
+                </svg>
+                <h1 class="text-5xl font-bold text-white">Sonar Object Detection</h1>
+            </div>
+            <p class="text-xl text-blue-200">Rock vs Mine Classification using Machine Learning</p>
+            <p class="text-sm text-gray-400 mt-2">Powered by Logistic Regression & Flask API</p>
+            <div id="status" class="mt-4 inline-block px-4 py-2 rounded-full text-sm font-semibold">
+                <span class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 pulse-glow"></span>
+                    <span id="statusText" class="text-green-400">Connecting...</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Model Statistics -->
+        <div id="stats" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <!-- Stats will be loaded dynamically -->
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-4 mb-6 justify-center">
+            <button onclick="loadSample('rock')" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all transform hover:scale-105 flex items-center gap-2 shadow-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
+                </svg>
+                Load Rock Sample
+            </button>
+            <button onclick="loadSample('mine')" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-all transform hover:scale-105 flex items-center gap-2 shadow-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                Load Mine Sample
+            </button>
+            <button onclick="clearAll()" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-all shadow-lg">
+                Clear All
+            </button>
+            <button onclick="randomFill()" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all shadow-lg">
+                Random Values
+            </button>
+        </div>
+
+        <!-- Input Section -->
+        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6 shadow-2xl">
+            <h2 class="text-2xl font-bold text-white mb-4">Sonar Readings (60 Features)</h2>
+            <p class="text-gray-400 mb-4 text-sm">Enter values between 0 and 1 for each frequency reading</p>
+            
+            <div id="inputGrid" class="grid grid-cols-5 md:grid-cols-10 gap-2 mb-6">
+                <!-- Inputs will be generated dynamically -->
+            </div>
+
+            <button onclick="predictObject()" id="predictBtn" class="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-bold text-lg transition-all transform hover:scale-[1.02] shadow-lg">
+                🔮 Predict Object
+            </button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="hidden text-center mb-6">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <p class="text-white mt-2">Analyzing sonar data...</p>
+        </div>
+
+        <!-- Prediction Result -->
+        <div id="result" class="hidden rounded-xl p-8 text-center transform transition-all shadow-2xl">
+            <div id="resultIcon" class="flex items-center justify-center gap-4 mb-4">
+                <!-- Icon will be inserted here -->
+            </div>
+            <h3 id="resultTitle" class="text-3xl font-bold text-white mb-2"></h3>
+            <p id="resultMessage" class="text-xl mb-4"></p>
+            <div id="confidence" class="grid grid-cols-2 gap-4 max-w-md mx-auto mt-6">
+                <!-- Confidence scores will be shown here -->
+            </div>
+        </div>
+
+        <!-- API Documentation -->
+        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-8">
+            <h3 class="text-xl font-bold text-white mb-4">API Endpoints</h3>
+            <div class="space-y-2 text-gray-300 text-sm font-mono">
+                <p><span class="text-green-400">POST</span> /api/predict - Make prediction with 60 features</p>
+                <p><span class="text-blue-400">GET</span> /api/stats - Get model statistics</p>
+                <p><span class="text-blue-400">GET</span> /api/sample/rock - Get rock sample data</p>
+                <p><span class="text-blue-400">GET</span> /api/sample/mine - Get mine sample data</p>
+                <p><span class="text-blue-400">GET</span> /api/health - Health check</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-8 text-center text-gray-400 text-sm">
+            <p>Machine Learning Project | Logistic Regression Classification</p>
+            <p class="mt-2">Dataset: Sonar Mines vs Rocks (208 samples, 60 features)</p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let inputValues = Array(60).fill('');
+
+        // Initialize the page
+        async function init() {
+            generateInputFields();
+            await checkHealth();
+            await loadStats();
+        }
+
+        // Check API health
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy' && data.model_loaded) {
+                    document.getElementById('statusText').textContent = 'Connected - Model Ready';
+                    document.getElementById('statusText').classList.add('text-green-400');
+                } else {
+                    document.getElementById('statusText').textContent = 'Model Not Loaded';
+                    document.getElementById('statusText').classList.add('text-red-400');
+                }
+            } catch (error) {
+                document.getElementById('statusText').textContent = 'API Offline';
+                document.getElementById('statusText').classList.add('text-red-400');
+            }
+        }
+
+        // Load model statistics
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const stats = await response.json();
+                
+                const statsHTML = `
+                    <div class="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-green-300 mb-2">Training Accuracy</h3>
+                        <p class="text-4xl font-bold text-green-400">${stats.training_accuracy}%</p>
+                        <p class="text-sm text-green-200 mt-2">${stats.training_samples} samples</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-blue-300 mb-2">Test Accuracy</h3>
+                        <p class="text-4xl font-bold text-blue-400">${stats.test_accuracy}%</p>
+                        <p class="text-sm text-blue-200 mt-2">${stats.test_samples} samples</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-purple-300 mb-2">Rock Samples</h3>
+                        <p class="text-4xl font-bold text-purple-400">${stats.rock_samples}</p>
+                        <p class="text-sm text-purple-200 mt-2">Class: R</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm border border-orange-500/30 rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-orange-300 mb-2">Mine Samples</h3>
+                        <p class="text-4xl font-bold text-orange-400">${stats.mine_samples}</p>
+                        <p class="text-sm text-orange-200 mt-2">Class: M</p>
+                    </div>
+                `;
+                
+                document.getElementById('stats').innerHTML = statsHTML;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Generate input fields
+        function generateInputFields() {
+            const grid = document.getElementById('inputGrid');
+            grid.innerHTML = '';
+            
+            for (let i = 0; i < 60; i++) {
+                const div = document.createElement('div');
+                div.className = 'flex flex-col';
+                div.innerHTML = `
+                    <label class="text-xs text-gray-400 mb-1">${i}</label>
+                    <input 
+                        type="number" 
+                        step="0.0001" 
+                        id="input_${i}"
+                        class="w-full px-2 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0.0"
+                        onchange="updateValue(${i}, this.value)"
+                    />
+                `;
+                grid.appendChild(div);
+            }
+        }
+
+        // Update value
+        function updateValue(index, value) {
+            inputValues[index] = value;
+        }
+
+        // Load sample data
+        async function loadSample(type) {
+            try {
+                const response = await fetch(`${API_URL}/sample/${type}`);
+                const data = await response.json();
+                
+                inputValues = data.features;
+                
+                // Update input fields
+                data.features.forEach((value, index) => {
+                    document.getElementById(`input_${index}`).value = value;
+                });
+                
+                document.getElementById('result').classList.add('hidden');
+            } catch (error) {
+                alert('Error loading sample: ' + error.message);
+            }
+        }
+
+        // Clear all inputs
+        function clearAll() {
+            inputValues = Array(60).fill('');
+            for (let i = 0; i < 60; i++) {
+                document.getElementById(`input_${i}`).value = '';
+            }
+            document.getElementById('result').classList.add('hidden');
+        }
+
+        // Random fill
+        function randomFill() {
+            for (let i = 0; i < 60; i++) {
+                const value = (Math.random() * 0.5).toFixed(4);
+                document.getElementById(`input_${i}`).value = value;
+                inputValues[i] = value;
+            }
+            document.getElementById('result').classList.add('hidden');
+        }
+
+        // Make prediction
+        async function predictObject() {
+            // Validate inputs
+            const features = inputValues.map(v => parseFloat(v) || 0);
+            
+            // Show loading
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('result').classList.add('hidden');
+            document.getElementById('predictBtn').disabled = true;
+            
+            try {
+                const response = await fetch(`${API_URL}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ features: features })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResult(data);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error making prediction: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('predictBtn').disabled = false;
+            }
+        }
+
+        // Display result
+        function displayResult(data) {
+            const resultDiv = document.getElementById('result');
+            const isRock = data.prediction === 'R';
+            
+            // Set colors
+            resultDiv.className = isRock 
+                ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-8 text-center transform transition-all shadow-2xl'
+                : 'bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-xl p-8 text-center transform transition-all shadow-2xl';
+            
+            // Set icon
+            const iconColor = isRock ? 'text-blue-400' : 'text-red-400';
+            const iconPath = isRock 
+                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>'
+                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>';
+            
+            document.getElementById('resultIcon').innerHTML = `
+                <svg class="w-16 h-16 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    ${iconPath}
+                </svg>
+            `;
+            
+            document.getElementById('resultTitle').textContent = `Prediction: ${data.prediction_label.toUpperCase()}`;
+            document.getElementById('resultTitle').className = 'text-3xl font-bold text-white mb-2';
+            
+            const messageColor = isRock ? 'text-blue-300' : 'text-red-300';
+            document.getElementById('resultMessage').textContent = data.message;
+            document.getElementById('resultMessage').className = `text-xl mb-4 ${messageColor}`;
+            
+            // Show confidence scores
+            document.getElementById('confidence').innerHTML = `
+                <div class="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4">
+                    <p class="text-blue-300 font-semibold">Rock</p>
+                    <p class="text-2xl font-bold text-blue-400">${data.confidence.rock}%</p>
+                </div>
+                <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+                    <p class="text-red-300 font-semibold">Mine</p>
+                    <p class="text-2xl font-bold text-red-400">${data.confidence.mine}%</p>
+                </div>
+            `;
+            
+            resultDiv.classList.remove('hidden');
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Initialize on page load
+        window.onload = init;
+    </script>
+</body>
+</html>
